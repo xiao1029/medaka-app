@@ -806,7 +806,17 @@ export default function App() {
   const allTasks = [...DEFAULT_TASKS,...customTasks];
   const tank     = tanks[selectedTank]||tanks[0];
   const logTank  = tanks[logTankIdx]||tanks[0];
-  const todayStr = toDateStr();
+  // 日付変更を自動検知して更新
+  const [todayStr, setTodayStr] = useState(toDateStr);
+  useEffect(()=>{
+    const schedule = () => {
+      const now = new Date();
+      const msToMidnight = new Date(now.getFullYear(),now.getMonth(),now.getDate()+1).getTime()-now.getTime();
+      return setTimeout(()=>{ setTodayStr(toDateStr()); schedule(); }, msToMidnight+500);
+    };
+    const t = schedule();
+    return ()=>clearTimeout(t);
+  },[]);
 
   useEffect(()=>lSet("med_tanks",tanks),[tanks]);
   useEffect(()=>lSet("med_ctasks",customTasks),[customTasks]);
