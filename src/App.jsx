@@ -695,6 +695,8 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
     "⭐","✨","🔥","💫","🎯","🏷️","📋","📝","🗓️","⏰",
   ];
 
+  const [draggingIdx, setDraggingIdx] = useState(null); // 浮き上がり用
+
   // ドラッグ状態
   const dragIdx  = useRef(null);
   const dragOver = useRef(null);
@@ -703,29 +705,41 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
     ? taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean)
     : allTasks;
 
-  // アイコン取得（overrideがあればそちらを優先）
   const getIcon = (task) => iconOverrides[task.id] || task.icon;
 
-  const onDragStart = (i) => { dragIdx.current = i; };
+  const onDragStart = (i) => { dragIdx.current = i; setDraggingIdx(i); };
   const onDragEnter = (i) => { dragOver.current = i; };
   const onDragEnd   = () => {
     if(dragIdx.current === null || dragOver.current === null || dragIdx.current === dragOver.current) {
-      dragIdx.current = null; dragOver.current = null; return;
+      dragIdx.current = null; dragOver.current = null; setDraggingIdx(null); return;
     }
     const newOrder = [...orderedTasks.map(t=>t.id)];
     const [moved] = newOrder.splice(dragIdx.current, 1);
     newOrder.splice(dragOver.current, 0, moved);
     setTaskOrder(newOrder);
-    dragIdx.current = null; dragOver.current = null;
+    dragIdx.current = null; dragOver.current = null; setDraggingIdx(null);
   };
 
   const touchStartY  = useRef(null);
   const touchDragIdx = useRef(null);
+  const longPressTimer = useRef(null); // 長押し判定タイマー
   const rowRefs      = useRef([]);
 
-  const onTouchStart = (i, e) => { touchDragIdx.current = i; touchStartY.current = e.touches[0].clientY; };
+  const onTouchStart = (i, e) => {
+    touchStartY.current = e.touches[0].clientY;
+    // 長押し500ms後にドラッグ開始＆浮き上がりエフェクト
+    longPressTimer.current = setTimeout(() => {
+      touchDragIdx.current = i;
+      setDraggingIdx(i);
+    }, 500);
+  };
   const onTouchMove  = (e) => {
-    if(touchDragIdx.current === null) return;
+    if(touchDragIdx.current === null) {
+      // 長押し前に動いたらキャンセル
+      clearTimeout(longPressTimer.current);
+      return;
+    }
+    e.preventDefault();
     const y = e.touches[0].clientY;
     rowRefs.current.forEach((ref, i) => {
       if(!ref) return;
@@ -734,14 +748,15 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
     });
   };
   const onTouchEnd = () => {
+    clearTimeout(longPressTimer.current);
     if(touchDragIdx.current === null || dragOver.current === null || touchDragIdx.current === dragOver.current) {
-      touchDragIdx.current = null; dragOver.current = null; return;
+      touchDragIdx.current = null; dragOver.current = null; setDraggingIdx(null); return;
     }
     const newOrder = [...orderedTasks.map(t=>t.id)];
     const [moved] = newOrder.splice(touchDragIdx.current, 1);
     newOrder.splice(dragOver.current, 0, moved);
     setTaskOrder(newOrder);
-    touchDragIdx.current = null; dragOver.current = null;
+    touchDragIdx.current = null; dragOver.current = null; setDraggingIdx(null);
   };
 
   return (
@@ -791,6 +806,7 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
       {orderedTasks.map((task, i)=>{
         const key=`${tank?.id}_${task.id}`;
         const val=intervals[key]??task.defaultInterval;
+        const isLifted = draggingIdx === i;
         return (
           <div key={task.id} ref={el=>rowRefs.current[i]=el}
             draggable
@@ -798,10 +814,23 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
             onDragEnter={()=>onDragEnter(i)}
             onDragEnd={onDragEnd}
             onDragOver={e=>e.preventDefault()}
-            style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:C.white,border:`1.5px solid ${C.border}`,borderRadius:14,marginBottom:8,transition:"box-shadow 0.15s" }}>
+            style={{
+              display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
+              background: isLifted ? C.sky : C.white,
+              border:`1.5px solid ${isLifted ? C.water : C.border}`,
+              borderRadius:14, marginBottom:8,
+              transform: isLifted ? "scale(1.03) translateY(-3px)" : "scale(1) translateY(0)",
+              boxShadow: isLifted
+                ? `0 12px 28px rgba(90,175,214,0.35), 0 4px 10px rgba(90,175,214,0.2)`
+                : "0 1px 4px rgba(90,175,214,0.07)",
+              transition:"transform 0.2s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s ease, background 0.2s ease",
+              zIndex: isLifted ? 10 : 1,
+              position:"relative",
+            }}>
             {/* ドラッグハンドル */}
             <div onTouchStart={e=>onTouchStart(i,e)} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-              style={{ fontSize:18,color:C.border,cursor:"grab",flexShrink:0,padding:"0 2px",userSelect:"none",touchAction:"none" }}>≡</div>
+              style={{ fontSize:18, color: isLifted ? C.water : C.border, cursor:"grab", flexShrink:0, padding:"0 2px", userSelect:"none", touchAction:"none",
+                transition:"color 0.2s", fontWeight: isLifted ? 900 : 400 }}>≡</div>
             {/* アイコン（タップで変更） */}
             <button onClick={()=>{ setEmojiInput(""); setPickerTaskId(task.id); }}
               style={{ width:36,height:36,borderRadius:10,background:C.sky,border:`1.5px solid ${C.border}`,fontSize:20,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",position:"relative" }}>
