@@ -891,23 +891,45 @@ export default function App() {
             <div key={task.id} style={{ background:sbg,border:`1.5px solid ${sborder}`,borderRadius:14,padding:"7px",position:"relative",overflow:"hidden",boxShadow:status==="urgent"?`0 2px 10px ${C.danger}22`:"0 1px 6px rgba(90,175,214,0.09)" }}>
               <div style={{ position:"absolute",top:0,left:0,height:3,width:`${pct}%`,background:`linear-gradient(to right,${task.color},${sc})`,borderRadius:"14px 0 0 0",transition:"width 0.6s ease" }}/>
               <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                {/* アイコン */}
                 <div style={{ width:48,height:48,borderRadius:12,background:`${task.color}18`,border:`2px solid ${task.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,position:"relative" }}>
                   {task.icon}
                   {cnt>0&&<div style={{ position:"absolute",top:-5,right:-5,width:17,height:17,background:task.color,borderRadius:"50%",border:"2px solid white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"white" }}>{cnt}</div>}
                 </div>
+                {/* テキスト */}
                 <div style={{ flex:1,minWidth:0 }}>
                   <div style={{ display:"flex",alignItems:"center",gap:5,marginBottom:2 }}>
                     <span style={{ fontWeight:800,fontSize:15,color:C.text }}>{task.label}</span>
-                    {status==="urgent"&&<span style={{ fontSize:9,fontWeight:700,color:"white",background:C.danger,padding:"1px 6px",borderRadius:20 }}>要対応</span>}
-                    {status==="warn"&&<span style={{ fontSize:9,fontWeight:700,color:"white",background:C.warn,padding:"1px 6px",borderRadius:20 }}>もうすぐ</span>}
                   </div>
-                  <div style={{ fontSize:12,color:C.sub }}>前回: {last?`${new Date(last).getMonth()+1}/${new Date(last).getDate()} ${formatTime(last)}`:"未実施"}</div>
-                  <div style={{ fontSize:12,color:sc,fontWeight:600,marginTop:1 }}>
-                    {days===Infinity?"まだ実施していません":daysLeft<=0?`${Math.abs(daysLeft)}日超過 ⚠️`:`あと ${daysLeft}日`}
-                    <span style={{ color:C.sub,fontWeight:400 }}>（{interval}日ごと）</span>
-                  </div>
+                  <div style={{ fontSize:11,color:C.sub }}>前回: {last?`${new Date(last).getMonth()+1}/${new Date(last).getDate()} ${formatTime(last)}`:"未実施"}</div>
                   {cnt>0&&<div style={{ fontSize:10,color:task.color,fontWeight:700,marginTop:1 }}>🐟 本日 {cnt}回実施済み</div>}
                 </div>
+                {/* 残り日数バッジ（右側に大きく表示） */}
+                <div style={{ flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                  width:64,height:56,borderRadius:12,
+                  background:status==="urgent"?C.danger:status==="warn"?C.warn:C.green,
+                  boxShadow:`0 3px 10px ${sc}55`,
+                  marginRight:4
+                }}>
+                  {days===Infinity?(
+                    <>
+                      <span style={{ fontSize:9,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>未実施</span>
+                      <span style={{ fontSize:18,color:"white",fontWeight:900,lineHeight:1.2 }}>!</span>
+                    </>
+                  ):daysLeft<=0?(
+                    <>
+                      <span style={{ fontSize:18,color:"white",fontWeight:900,lineHeight:1.1 }}>{Math.abs(daysLeft)}</span>
+                      <span style={{ fontSize:9,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>日超過</span>
+                    </>
+                  ):(
+                    <>
+                      <span style={{ fontSize:9,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>あと</span>
+                      <span style={{ fontSize:daysLeft>=10?20:24,color:"white",fontWeight:900,lineHeight:1.1 }}>{daysLeft}</span>
+                      <span style={{ fontSize:9,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>日</span>
+                    </>
+                  )}
+                </div>
+                {/* 実施ボタン */}
                 <button onClick={()=>doTask(task.id)}
                   style={{ width:40,height:40,borderRadius:12,background:`linear-gradient(135deg,${task.color},${task.color}CC)`,border:"none",color:"white",fontSize:18,cursor:"pointer",flexShrink:0,boxShadow:`0 3px 10px ${task.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700 }}
                   onTouchStart={e=>e.currentTarget.style.transform="scale(0.90)"}
