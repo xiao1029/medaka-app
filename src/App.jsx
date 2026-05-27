@@ -677,21 +677,86 @@ function TankEditRow({ tank, isSelected, canDelete, onSave, onDelete }) {
    ⚙️ SettingsView  ── ★ トップレベルに昇格（入力バグ修正）
 ═══════════════════════════════════════════════════════════ */
 function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
-  customTasks, setCustomTasks, intervals, setIntervals, allTasks, tank, showToast }) {
+  customTasks, setCustomTasks, intervals, setIntervals, allTasks, tank, showToast,
+  taskOrder, setTaskOrder }) {
 
   const [newTaskLabel,    setNewTaskLabel]    = useState("");
   const [newTaskInterval, setNewTaskInterval] = useState(7);
   const [newTankName,     setNewTankName]     = useState("");
   const [newTankNotes,    setNewTankNotes]    = useState("");
 
+  // ドラッグ状態
+  const dragIdx  = useRef(null);
+  const dragOver = useRef(null);
+
+  // 並び順を適用したタスクリスト
+  const orderedTasks = taskOrder.length > 0
+    ? taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean)
+    : allTasks;
+
+  const onDragStart = (i) => { dragIdx.current = i; };
+  const onDragEnter = (i) => { dragOver.current = i; };
+  const onDragEnd   = () => {
+    if(dragIdx.current === null || dragOver.current === null || dragIdx.current === dragOver.current) {
+      dragIdx.current = null; dragOver.current = null; return;
+    }
+    const newOrder = [...orderedTasks.map(t=>t.id)];
+    const [moved] = newOrder.splice(dragIdx.current, 1);
+    newOrder.splice(dragOver.current, 0, moved);
+    setTaskOrder(newOrder);
+    dragIdx.current = null; dragOver.current = null;
+  };
+
+  // タッチ操作でのドラッグ（iPhone対応）
+  const touchStartY  = useRef(null);
+  const touchDragIdx = useRef(null);
+  const rowRefs      = useRef([]);
+
+  const onTouchStart = (i, e) => {
+    touchDragIdx.current = i;
+    touchStartY.current  = e.touches[0].clientY;
+  };
+  const onTouchMove = (e) => {
+    if(touchDragIdx.current === null) return;
+    const y = e.touches[0].clientY;
+    rowRefs.current.forEach((ref, i) => {
+      if(!ref) return;
+      const rect = ref.getBoundingClientRect();
+      if(y >= rect.top && y <= rect.bottom) dragOver.current = i;
+    });
+  };
+  const onTouchEnd = () => {
+    if(touchDragIdx.current === null || dragOver.current === null || touchDragIdx.current === dragOver.current) {
+      touchDragIdx.current = null; dragOver.current = null; return;
+    }
+    const newOrder = [...orderedTasks.map(t=>t.id)];
+    const [moved] = newOrder.splice(touchDragIdx.current, 1);
+    newOrder.splice(dragOver.current, 0, moved);
+    setTaskOrder(newOrder);
+    touchDragIdx.current = null; dragOver.current = null;
+  };
+
   return (
     <div style={{ flex:1,overflowY:"auto",padding:"0 16px 90px" }}>
       <SectionLabel mt={8}>ケア周期の設定</SectionLabel>
-      {allTasks.map(task=>{
+      <div style={{ fontSize:11,color:C.sub,marginBottom:8,paddingLeft:2 }}>≡ を長押しでドラッグして並び替えができます</div>
+      {orderedTasks.map((task, i)=>{
         const key=`${tank?.id}_${task.id}`;
         const val=intervals[key]??task.defaultInterval;
         return (
-          <div key={task.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:C.white,border:`1.5px solid ${C.border}`,borderRadius:14,marginBottom:8 }}>
+          <div key={task.id} ref={el=>rowRefs.current[i]=el}
+            draggable
+            onDragStart={()=>onDragStart(i)}
+            onDragEnter={()=>onDragEnter(i)}
+            onDragEnd={onDragEnd}
+            onDragOver={e=>e.preventDefault()}
+            style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:C.white,border:`1.5px solid ${C.border}`,borderRadius:14,marginBottom:8,transition:"box-shadow 0.15s" }}>
+            {/* ドラッグハンドル */}
+            <div
+              onTouchStart={e=>onTouchStart(i,e)}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+              style={{ fontSize:18,color:C.border,cursor:"grab",flexShrink:0,padding:"0 2px",userSelect:"none",touchAction:"none" }}>≡</div>
             <span style={{ fontSize:20 }}>{task.icon}</span>
             <span style={{ flex:1,color:C.text,fontSize:14,fontWeight:700 }}>{task.label}</span>
             <button onClick={()=>setIntervals(p=>({...p,[key]:Math.max(1,val-1)}))} style={{ width:30,height:30,background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,fontWeight:700,fontSize:16,cursor:"pointer" }}>−</button>
@@ -802,8 +867,13 @@ export default function App() {
   const [fishRecords,setFishRecords]   = useState(()=>lGet("med_fish",[]));
   const [myProfile,setMyProfile]       = useState(()=>lGet("med_profile",null));
   const [friends,setFriends]           = useState(()=>lGet("med_friends",[]));
+  const [taskOrder,setTaskOrder]       = useState(()=>lGet("med_task_order",[]));
 
   const allTasks = [...DEFAULT_TASKS,...customTasks];
+  // taskOrderが設定されていれば並び順を適用
+  const orderedAllTasks = taskOrder.length > 0
+    ? taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean)
+    : allTasks;
   const tank     = tanks[selectedTank]||tanks[0];
   const logTank  = tanks[logTankIdx]||tanks[0];
   // 日付変更を自動検知して更新
@@ -825,6 +895,7 @@ export default function App() {
   useEffect(()=>lSet("med_fish",fishRecords),[fishRecords]);
   useEffect(()=>lSet("med_profile",myProfile),[myProfile]);
   useEffect(()=>lSet("med_friends",friends),[friends]);
+  useEffect(()=>lSet("med_task_order",taskOrder),[taskOrder]);
   useEffect(()=>{
     if(!myProfile) return;
     const pub={ id:myProfile.id,name:myProfile.name,bio:myProfile.bio,avatar:myProfile.avatar,
@@ -864,7 +935,7 @@ export default function App() {
 
   const todayCount  = taskId => (tank?.tasks[taskId]?.history||[]).filter(iso=>toDateStr(new Date(iso))===todayStr).length;
   const lastDone    = taskId => { const h=tank?.tasks[taskId]?.history||[]; return h.length?h[0]:null; };
-  const urgentCount = allTasks.filter(t=>getStatus(daysSince(tank?.tasks[t.id]?.history||[]),getInterval(t.id,t.defaultInterval))==="urgent").length;
+  const urgentCount = orderedAllTasks.filter(t=>getStatus(daysSince(tank?.tasks[t.id]?.history||[]),getInterval(t.id,t.defaultInterval))==="urgent").length;
   const season = getSeason();
   const tip    = SEASON_TIPS[season];
 
@@ -875,7 +946,7 @@ export default function App() {
         <span style={{ fontWeight:800 }}>{tip.label}</span><br/>{tip.tip}
       </div>
       <div style={{ display:"flex",flexDirection:"column",gap:7,padding:"0 16px" }}>
-        {allTasks.map(task=>{
+        {orderedAllTasks.map(task=>{
           const history=tank?.tasks[task.id]?.history||[];
           const days=daysSince(history);
           const interval=getInterval(task.id,task.defaultInterval);
@@ -945,7 +1016,7 @@ export default function App() {
   /* ── LogView（記録画面内に水槽タブ内包） */
   const LogView = () => {
     const dayLogs=[];
-    allTasks.forEach(task=>{
+    orderedAllTasks.forEach(task=>{
       (logTank?.tasks[task.id]?.history||[]).filter(iso=>toDateStr(new Date(iso))===selectedDay)
         .forEach(iso=>dayLogs.push({ iso,task }));
     });
@@ -955,7 +1026,7 @@ export default function App() {
     return (
       <div style={{ flex:1,overflowY:"auto",paddingBottom:90 }}>
         {/* カレンダー */}
-        <CalendarView tank={logTank} allTasks={allTasks}
+        <CalendarView tank={logTank} allTasks={orderedAllTasks}
           diaryEntries={diaryEntries.filter(e=>e.tankId===logTank.id)}
           medakaRecords={fishRecords.filter(r=>!r.tankId||r.tankId===logTank.id)}
           onDaySelect={setSelectedDay} selectedDay={selectedDay}/>
@@ -1092,7 +1163,7 @@ export default function App() {
         {view==="diary"    && <DiaryView tank={tank} tanks={tanks} diaryEntries={diaryEntries} setDiaryEntries={setDiaryEntries} showToast={showToast} todayStr={todayStr}/>}
         {view==="fish"     && <FishView  fishRecords={fishRecords} setFishRecords={setFishRecords} showToast={showToast} todayStr={todayStr} tanks={tanks}/>}
         {view==="friends"  && <FriendsView myProfile={myProfile} setMyProfile={setMyProfile} friends={friends} setFriends={setFriends} diaryEntries={diaryEntries} fishRecords={fishRecords} showToast={showToast}/>}
-        {view==="settings" && <SettingsView tanks={tanks} setTanks={setTanks} selectedTank={selectedTank} setSelectedTank={setSelectedTank} setView={setView} customTasks={customTasks} setCustomTasks={setCustomTasks} intervals={intervals} setIntervals={setIntervals} allTasks={allTasks} tank={tank} showToast={showToast}/>}
+        {view==="settings" && <SettingsView tanks={tanks} setTanks={setTanks} selectedTank={selectedTank} setSelectedTank={setSelectedTank} setView={setView} customTasks={customTasks} setCustomTasks={setCustomTasks} intervals={intervals} setIntervals={setIntervals} allTasks={allTasks} tank={tank} showToast={showToast} taskOrder={taskOrder} setTaskOrder={setTaskOrder}/>}
       </div>
 
       {/* ボトムナビ */}
