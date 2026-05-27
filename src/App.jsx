@@ -906,26 +906,26 @@ export default function App() {
                 </div>
                 {/* 残り日数バッジ（右側に大きく表示） */}
                 <div style={{ flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-                  width:64,height:56,borderRadius:12,
+                  width:40,height:40,borderRadius:12,
                   background:status==="urgent"?C.danger:status==="warn"?C.warn:C.green,
                   boxShadow:`0 3px 10px ${sc}55`,
                   marginRight:4
                 }}>
                   {days===Infinity?(
                     <>
-                      <span style={{ fontSize:9,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>未実施</span>
-                      <span style={{ fontSize:18,color:"white",fontWeight:900,lineHeight:1.2 }}>!</span>
+                      <span style={{ fontSize:8,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>未実施</span>
+                      <span style={{ fontSize:16,color:"white",fontWeight:900,lineHeight:1.2 }}>!</span>
                     </>
                   ):daysLeft<=0?(
                     <>
-                      <span style={{ fontSize:18,color:"white",fontWeight:900,lineHeight:1.1 }}>{Math.abs(daysLeft)}</span>
-                      <span style={{ fontSize:9,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>日超過</span>
+                      <span style={{ fontSize:16,color:"white",fontWeight:900,lineHeight:1.1 }}>{Math.abs(daysLeft)}</span>
+                      <span style={{ fontSize:8,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>日超過</span>
                     </>
                   ):(
                     <>
-                      <span style={{ fontSize:9,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>あと</span>
-                      <span style={{ fontSize:daysLeft>=10?20:24,color:"white",fontWeight:900,lineHeight:1.1 }}>{daysLeft}</span>
-                      <span style={{ fontSize:9,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>日</span>
+                      <span style={{ fontSize:8,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>あと</span>
+                      <span style={{ fontSize:daysLeft>=10?16:18,color:"white",fontWeight:900,lineHeight:1.1 }}>{daysLeft}</span>
+                      <span style={{ fontSize:8,color:"rgba(255,255,255,0.85)",fontWeight:700,lineHeight:1 }}>日</span>
                     </>
                   )}
                 </div>
