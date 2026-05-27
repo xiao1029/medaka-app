@@ -678,21 +678,33 @@ function TankEditRow({ tank, isSelected, canDelete, onSave, onDelete }) {
 ═══════════════════════════════════════════════════════════ */
 function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
   customTasks, setCustomTasks, intervals, setIntervals, allTasks, tank, showToast,
-  taskOrder, setTaskOrder }) {
+  taskOrder, setTaskOrder, iconOverrides, setIconOverrides }) {
 
   const [newTaskLabel,    setNewTaskLabel]    = useState("");
   const [newTaskInterval, setNewTaskInterval] = useState(7);
   const [newTankName,     setNewTankName]     = useState("");
   const [newTankNotes,    setNewTankNotes]    = useState("");
+  const [pickerTaskId,    setPickerTaskId]    = useState(null); // ピッカー表示中のtaskId
+  const [emojiInput,      setEmojiInput]      = useState("");   // 直接入力用
+
+  // よく使う絵文字候補
+  const EMOJI_PRESETS = [
+    "🐟","🐠","🐡","🦈","🐙","🦑","🦐","🦞","🐚","🪸",
+    "💧","🌊","🪣","🫧","❄️","🌡️","🔬","🧪","💊","💉",
+    "🌿","🌱","🍃","🌾","🌸","🌺","🍀","🌻","🌈","☀️",
+    "⭐","✨","🔥","💫","🎯","🏷️","📋","📝","🗓️","⏰",
+  ];
 
   // ドラッグ状態
   const dragIdx  = useRef(null);
   const dragOver = useRef(null);
 
-  // 並び順を適用したタスクリスト
   const orderedTasks = taskOrder.length > 0
     ? taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean)
     : allTasks;
+
+  // アイコン取得（overrideがあればそちらを優先）
+  const getIcon = (task) => iconOverrides[task.id] || task.icon;
 
   const onDragStart = (i) => { dragIdx.current = i; };
   const onDragEnter = (i) => { dragOver.current = i; };
@@ -707,16 +719,12 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
     dragIdx.current = null; dragOver.current = null;
   };
 
-  // タッチ操作でのドラッグ（iPhone対応）
   const touchStartY  = useRef(null);
   const touchDragIdx = useRef(null);
   const rowRefs      = useRef([]);
 
-  const onTouchStart = (i, e) => {
-    touchDragIdx.current = i;
-    touchStartY.current  = e.touches[0].clientY;
-  };
-  const onTouchMove = (e) => {
+  const onTouchStart = (i, e) => { touchDragIdx.current = i; touchStartY.current = e.touches[0].clientY; };
+  const onTouchMove  = (e) => {
     if(touchDragIdx.current === null) return;
     const y = e.touches[0].clientY;
     rowRefs.current.forEach((ref, i) => {
@@ -738,8 +746,48 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
 
   return (
     <div style={{ flex:1,overflowY:"auto",padding:"0 16px 90px" }}>
+
+      {/* アイコンピッカーモーダル */}
+      {pickerTaskId && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(26,58,74,0.45)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center" }}
+          onClick={e=>{ if(e.target===e.currentTarget) setPickerTaskId(null); }}>
+          <div style={{ background:C.white,borderRadius:"24px 24px 0 0",padding:"20px 20px 40px",width:"100%",maxWidth:430 }}>
+            <div style={{ width:36,height:4,borderRadius:2,background:C.border,margin:"0 auto 16px" }}/>
+            <div style={{ fontWeight:800,fontSize:15,color:C.text,marginBottom:12 }}>
+              アイコンを選択
+            </div>
+            {/* 絵文字候補グリッド */}
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:6,marginBottom:14 }}>
+              {EMOJI_PRESETS.map(e=>(
+                <button key={e} onClick={()=>{
+                  setIconOverrides(p=>({...p,[pickerTaskId]:e}));
+                  setPickerTaskId(null);
+                  showToast(`アイコンを ${e} に変更しました`);
+                }} style={{ aspectRatio:"1",fontSize:22,background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>{e}</button>
+              ))}
+            </div>
+            {/* 直接入力 */}
+            <div style={{ marginBottom:12 }}>
+              <label style={{ fontSize:12,fontWeight:700,color:C.sub,display:"block",marginBottom:4 }}>絵文字を直接入力</label>
+              <div style={{ display:"flex",gap:8 }}>
+                <input value={emojiInput} onChange={e=>setEmojiInput(e.target.value)} placeholder="例: 🌊"
+                  style={{ flex:1,padding:"10px 14px",background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:12,fontSize:20,outline:"none",textAlign:"center" }}/>
+                <button onClick={()=>{
+                  if(!emojiInput.trim()) return;
+                  setIconOverrides(p=>({...p,[pickerTaskId]:emojiInput.trim()}));
+                  setEmojiInput(""); setPickerTaskId(null);
+                  showToast(`アイコンを ${emojiInput.trim()} に変更しました`);
+                }} style={{ padding:"10px 18px",background:`linear-gradient(135deg,${C.water},${C.waterD})`,border:"none",borderRadius:12,color:"white",fontWeight:800,fontSize:14,cursor:"pointer" }}>決定</button>
+              </div>
+            </div>
+            <button onClick={()=>setPickerTaskId(null)}
+              style={{ width:"100%",padding:"10px",background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:12,color:C.sub,fontWeight:700,fontSize:14,cursor:"pointer" }}>キャンセル</button>
+          </div>
+        </div>
+      )}
+
       <SectionLabel mt={8}>ケア周期の設定</SectionLabel>
-      <div style={{ fontSize:11,color:C.sub,marginBottom:8,paddingLeft:2 }}>≡ を長押しでドラッグして並び替えができます</div>
+      <div style={{ fontSize:11,color:C.sub,marginBottom:8,paddingLeft:2 }}>アイコンをタップで変更 / ≡ を長押しで並び替え</div>
       {orderedTasks.map((task, i)=>{
         const key=`${tank?.id}_${task.id}`;
         const val=intervals[key]??task.defaultInterval;
@@ -752,12 +800,14 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
             onDragOver={e=>e.preventDefault()}
             style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:C.white,border:`1.5px solid ${C.border}`,borderRadius:14,marginBottom:8,transition:"box-shadow 0.15s" }}>
             {/* ドラッグハンドル */}
-            <div
-              onTouchStart={e=>onTouchStart(i,e)}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
+            <div onTouchStart={e=>onTouchStart(i,e)} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
               style={{ fontSize:18,color:C.border,cursor:"grab",flexShrink:0,padding:"0 2px",userSelect:"none",touchAction:"none" }}>≡</div>
-            <span style={{ fontSize:20 }}>{task.icon}</span>
+            {/* アイコン（タップで変更） */}
+            <button onClick={()=>{ setEmojiInput(""); setPickerTaskId(task.id); }}
+              style={{ width:36,height:36,borderRadius:10,background:C.sky,border:`1.5px solid ${C.border}`,fontSize:20,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",position:"relative" }}>
+              {getIcon(task)}
+              <span style={{ position:"absolute",bottom:-2,right:-2,fontSize:8,background:C.water,color:"white",borderRadius:4,padding:"1px 3px",fontWeight:700 }}>✏️</span>
+            </button>
             <span style={{ flex:1,color:C.text,fontSize:14,fontWeight:700 }}>{task.label}</span>
             <button onClick={()=>setIntervals(p=>({...p,[key]:Math.max(1,val-1)}))} style={{ width:30,height:30,background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,fontWeight:700,fontSize:16,cursor:"pointer" }}>−</button>
             <span style={{ color:task.color,fontWeight:800,minWidth:28,textAlign:"center",fontSize:16 }}>{val}</span>
@@ -868,6 +918,7 @@ export default function App() {
   const [myProfile,setMyProfile]       = useState(()=>lGet("med_profile",null));
   const [friends,setFriends]           = useState(()=>lGet("med_friends",[]));
   const [taskOrder,setTaskOrder]       = useState(()=>lGet("med_task_order",[]));
+  const [iconOverrides,setIconOverrides] = useState(()=>lGet("med_icon_overrides",{}));
 
   const allTasks = [...DEFAULT_TASKS,...customTasks];
   // taskOrderが設定されていれば並び順を適用
@@ -896,6 +947,7 @@ export default function App() {
   useEffect(()=>lSet("med_profile",myProfile),[myProfile]);
   useEffect(()=>lSet("med_friends",friends),[friends]);
   useEffect(()=>lSet("med_task_order",taskOrder),[taskOrder]);
+  useEffect(()=>lSet("med_icon_overrides",iconOverrides),[iconOverrides]);
   useEffect(()=>{
     if(!myProfile) return;
     const pub={ id:myProfile.id,name:myProfile.name,bio:myProfile.bio,avatar:myProfile.avatar,
@@ -964,7 +1016,7 @@ export default function App() {
               <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                 {/* アイコン */}
                 <div style={{ width:48,height:48,borderRadius:12,background:`${task.color}18`,border:`2px solid ${task.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,position:"relative" }}>
-                  {task.icon}
+                  {iconOverrides[task.id] || task.icon}
                   {cnt>0&&<div style={{ position:"absolute",top:-5,right:-5,width:17,height:17,background:task.color,borderRadius:"50%",border:"2px solid white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"white" }}>{cnt}</div>}
                 </div>
                 {/* テキスト */}
@@ -1163,7 +1215,7 @@ export default function App() {
         {view==="diary"    && <DiaryView tank={tank} tanks={tanks} diaryEntries={diaryEntries} setDiaryEntries={setDiaryEntries} showToast={showToast} todayStr={todayStr}/>}
         {view==="fish"     && <FishView  fishRecords={fishRecords} setFishRecords={setFishRecords} showToast={showToast} todayStr={todayStr} tanks={tanks}/>}
         {view==="friends"  && <FriendsView myProfile={myProfile} setMyProfile={setMyProfile} friends={friends} setFriends={setFriends} diaryEntries={diaryEntries} fishRecords={fishRecords} showToast={showToast}/>}
-        {view==="settings" && <SettingsView tanks={tanks} setTanks={setTanks} selectedTank={selectedTank} setSelectedTank={setSelectedTank} setView={setView} customTasks={customTasks} setCustomTasks={setCustomTasks} intervals={intervals} setIntervals={setIntervals} allTasks={allTasks} tank={tank} showToast={showToast} taskOrder={taskOrder} setTaskOrder={setTaskOrder}/>}
+        {view==="settings" && <SettingsView tanks={tanks} setTanks={setTanks} selectedTank={selectedTank} setSelectedTank={setSelectedTank} setView={setView} customTasks={customTasks} setCustomTasks={setCustomTasks} intervals={intervals} setIntervals={setIntervals} allTasks={allTasks} tank={tank} showToast={showToast} taskOrder={taskOrder} setTaskOrder={setTaskOrder} iconOverrides={iconOverrides} setIconOverrides={setIconOverrides}/>}
       </div>
 
       {/* ボトムナビ */}
