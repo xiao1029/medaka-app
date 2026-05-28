@@ -695,11 +695,10 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
     "⭐","✨","🔥","💫","🎯","🏷️","📋","📝","🗓️","⏰",
   ];
 
-  const [draggingIdx, setDraggingIdx] = useState(null); // 浮き上がり用
-
-  // ドラッグ状態
-  const dragIdx  = useRef(null);
-  const dragOver = useRef(null);
+  // ── フローティングDnD state ──
+  const [draggingIdx,  setDraggingIdx]  = useState(null);
+  const [floatPos,     setFloatPos]     = useState({ x:0, y:0 });
+  const [overIdx,      setOverIdx]      = useState(null);
 
   const orderedTasks = taskOrder.length > 0
     ? taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean)
@@ -707,56 +706,72 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
 
   const getIcon = (task) => iconOverrides[task.id] || task.icon;
 
-  const onDragStart = (i) => { dragIdx.current = i; setDraggingIdx(i); };
-  const onDragEnter = (i) => { dragOver.current = i; };
-  const onDragEnd   = () => {
-    if(dragIdx.current === null || dragOver.current === null || dragIdx.current === dragOver.current) {
-      dragIdx.current = null; dragOver.current = null; setDraggingIdx(null); return;
+  // refs
+  const longPressTimer = useRef(null);
+  const rowRefs        = useRef([]);
+  const dragStartY     = useRef(0);
+  const dragStartX     = useRef(0);
+  const scrollRef      = useRef(null);
+
+  // PCドラッグ（draggable API）
+  const onDragStart = (i, e) => {
+    setDraggingIdx(i);
+    setOverIdx(i);
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const onDragEnterRow = (i) => setOverIdx(i);
+  const onDragEnd = (i) => {
+    if(overIdx !== null && overIdx !== i) {
+      const newOrder = [...orderedTasks.map(t=>t.id)];
+      const [moved] = newOrder.splice(i, 1);
+      newOrder.splice(overIdx, 0, moved);
+      setTaskOrder(newOrder);
     }
-    const newOrder = [...orderedTasks.map(t=>t.id)];
-    const [moved] = newOrder.splice(dragIdx.current, 1);
-    newOrder.splice(dragOver.current, 0, moved);
-    setTaskOrder(newOrder);
-    dragIdx.current = null; dragOver.current = null; setDraggingIdx(null);
+    setDraggingIdx(null); setOverIdx(null);
   };
 
-  const touchStartY  = useRef(null);
-  const touchDragIdx = useRef(null);
-  const longPressTimer = useRef(null); // 長押し判定タイマー
-  const rowRefs      = useRef([]);
-
-  const onTouchStart = (i, e) => {
-    touchStartY.current = e.touches[0].clientY;
-    // 長押し500ms後にドラッグ開始＆浮き上がりエフェクト
+  // iPhoneタッチDnD
+  const onHandleTouchStart = (i, e) => {
+    dragStartX.current = e.touches[0].clientX;
+    dragStartY.current = e.touches[0].clientY;
     longPressTimer.current = setTimeout(() => {
-      touchDragIdx.current = i;
+      const rect = rowRefs.current[i]?.getBoundingClientRect();
       setDraggingIdx(i);
-    }, 500);
+      setOverIdx(i);
+      setFloatPos({ x: dragStartX.current, y: dragStartY.current });
+    }, 450);
   };
-  const onTouchMove  = (e) => {
-    if(touchDragIdx.current === null) {
-      // 長押し前に動いたらキャンセル
+
+  const onHandleTouchMove = (e) => {
+    const dx = Math.abs(e.touches[0].clientX - dragStartX.current);
+    const dy = Math.abs(e.touches[0].clientY - dragStartY.current);
+    // 長押し前に大きく動いたらキャンセル
+    if(draggingIdx === null && (dx > 8 || dy > 8)) {
       clearTimeout(longPressTimer.current);
       return;
     }
+    if(draggingIdx === null) return;
     e.preventDefault();
-    const y = e.touches[0].clientY;
+    const cx = e.touches[0].clientX;
+    const cy = e.touches[0].clientY;
+    setFloatPos({ x: cx, y: cy });
+    // どの行の上にいるか判定
     rowRefs.current.forEach((ref, i) => {
       if(!ref) return;
       const rect = ref.getBoundingClientRect();
-      if(y >= rect.top && y <= rect.bottom) dragOver.current = i;
+      if(cy >= rect.top && cy <= rect.bottom) setOverIdx(i);
     });
   };
-  const onTouchEnd = () => {
+
+  const onHandleTouchEnd = () => {
     clearTimeout(longPressTimer.current);
-    if(touchDragIdx.current === null || dragOver.current === null || touchDragIdx.current === dragOver.current) {
-      touchDragIdx.current = null; dragOver.current = null; setDraggingIdx(null); return;
+    if(draggingIdx !== null && overIdx !== null && overIdx !== draggingIdx) {
+      const newOrder = [...orderedTasks.map(t=>t.id)];
+      const [moved] = newOrder.splice(draggingIdx, 1);
+      newOrder.splice(overIdx, 0, moved);
+      setTaskOrder(newOrder);
     }
-    const newOrder = [...orderedTasks.map(t=>t.id)];
-    const [moved] = newOrder.splice(touchDragIdx.current, 1);
-    newOrder.splice(dragOver.current, 0, moved);
-    setTaskOrder(newOrder);
-    touchDragIdx.current = null; dragOver.current = null; setDraggingIdx(null);
+    setDraggingIdx(null); setOverIdx(null);
   };
 
   return (
@@ -802,38 +817,67 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
       )}
 
       <SectionLabel mt={8}>ケア周期の設定</SectionLabel>
-      <div style={{ fontSize:11,color:C.sub,marginBottom:8,paddingLeft:2 }}>アイコンをタップで変更 / ≡ を長押しで並び替え</div>
+      <div style={{ fontSize:11,color:C.sub,marginBottom:8,paddingLeft:2 }}>アイコンをタップで変更 / ≡ を長押しでドラッグ並び替え</div>
+
+      {/* フローティング要素（ドラッグ中に指に追従） */}
+      {draggingIdx !== null && (
+        <div style={{
+          position:"fixed",
+          left: floatPos.x - 180,
+          top:  floatPos.y - 30,
+          width: 360,
+          zIndex:999,
+          pointerEvents:"none",
+          background: C.sky,
+          border:`2px solid ${C.water}`,
+          borderRadius:14,
+          padding:"12px 16px",
+          boxShadow:"0 20px 50px rgba(90,175,214,0.45), 0 6px 16px rgba(26,58,74,0.2)",
+          transform:"scale(1.05) rotate(-1deg)",
+          display:"flex", alignItems:"center", gap:12,
+        }}>
+          <span style={{ fontSize:20,color:C.water,fontWeight:900 }}>≡</span>
+          <div style={{ width:36,height:36,borderRadius:10,background:`${orderedTasks[draggingIdx]?.color||C.water}18`,border:`1.5px solid ${orderedTasks[draggingIdx]?.color||C.water}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20 }}>
+            {getIcon(orderedTasks[draggingIdx])}
+          </div>
+          <span style={{ flex:1,color:C.text,fontSize:14,fontWeight:800 }}>{orderedTasks[draggingIdx]?.label}</span>
+          <span style={{ fontSize:16,color:orderedTasks[draggingIdx]?.color||C.water,fontWeight:800 }}>
+            {intervals[`${tank?.id}_${orderedTasks[draggingIdx]?.id}`] ?? orderedTasks[draggingIdx]?.defaultInterval}日
+          </span>
+        </div>
+      )}
+
       {orderedTasks.map((task, i)=>{
         const key=`${tank?.id}_${task.id}`;
         const val=intervals[key]??task.defaultInterval;
         const isLifted = draggingIdx === i;
+        const isTarget = overIdx === i && draggingIdx !== null && draggingIdx !== i;
         return (
           <div key={task.id} ref={el=>rowRefs.current[i]=el}
             draggable
-            onDragStart={()=>onDragStart(i)}
-            onDragEnter={()=>onDragEnter(i)}
-            onDragEnd={onDragEnd}
+            onDragStart={e=>onDragStart(i,e)}
+            onDragEnter={()=>onDragEnterRow(i)}
+            onDragEnd={()=>onDragEnd(i)}
             onDragOver={e=>e.preventDefault()}
             style={{
-              display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
-              background: isLifted ? C.sky : C.white,
-              border:`1.5px solid ${isLifted ? C.water : C.border}`,
+              display:"flex", alignItems:"center", gap:12, padding:"12px 16px",
+              background: isLifted ? "transparent" : isTarget ? "#EBF7FF" : C.white,
+              border:`1.5px solid ${isLifted?"transparent":isTarget?C.water:C.border}`,
               borderRadius:14, marginBottom:8,
-              transform: isLifted ? "scale(1.03) translateY(-3px)" : "scale(1) translateY(0)",
-              boxShadow: isLifted
-                ? `0 12px 28px rgba(90,175,214,0.35), 0 4px 10px rgba(90,175,214,0.2)`
-                : "0 1px 4px rgba(90,175,214,0.07)",
-              transition:"transform 0.2s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s ease, background 0.2s ease",
-              zIndex: isLifted ? 10 : 1,
+              opacity: isLifted ? 0.25 : 1,
+              transform: isTarget ? "translateY(-3px)" : "translateY(0)",
+              boxShadow: isTarget ? `0 6px 18px rgba(90,175,214,0.25)` : "0 1px 4px rgba(90,175,214,0.07)",
+              transition:"opacity 0.15s, transform 0.18s ease, box-shadow 0.18s, border-color 0.18s, background 0.15s",
               position:"relative",
-              userSelect:"none",
-              WebkitUserSelect:"none",
-              WebkitTouchCallout:"none",
+              userSelect:"none", WebkitUserSelect:"none", WebkitTouchCallout:"none",
             }}>
             {/* ドラッグハンドル */}
-            <div onTouchStart={e=>onTouchStart(i,e)} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-              style={{ fontSize:18, color: isLifted ? C.water : C.border, cursor:"grab", flexShrink:0, padding:"0 2px", userSelect:"none", touchAction:"none",
-                transition:"color 0.2s", fontWeight: isLifted ? 900 : 400 }}>≡</div>
+            <div
+              onTouchStart={e=>onHandleTouchStart(i,e)}
+              onTouchMove={onHandleTouchMove}
+              onTouchEnd={onHandleTouchEnd}
+              style={{ fontSize:20,color:C.sub,cursor:"grab",flexShrink:0,padding:"0 2px",
+                userSelect:"none",WebkitUserSelect:"none",touchAction:"none",lineHeight:1 }}>≡</div>
             {/* アイコン（タップで変更） */}
             <button onClick={()=>{ setEmojiInput(""); setPickerTaskId(task.id); }}
               style={{ width:36,height:36,borderRadius:10,background:C.sky,border:`1.5px solid ${C.border}`,fontSize:20,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",position:"relative" }}>
