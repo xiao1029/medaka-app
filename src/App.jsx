@@ -826,6 +826,9 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
               transition:"transform 0.2s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s ease, background 0.2s ease",
               zIndex: isLifted ? 10 : 1,
               position:"relative",
+              userSelect:"none",
+              WebkitUserSelect:"none",
+              WebkitTouchCallout:"none",
             }}>
             {/* ドラッグハンドル */}
             <div onTouchStart={e=>onTouchStart(i,e)} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
@@ -1167,6 +1170,8 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&display=swap');
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+        *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+        input,textarea{-webkit-user-select:text!important;user-select:text!important;}
         @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
         @keyframes shimmer{0%,100%{opacity:1}50%{opacity:0.82}}
         ::-webkit-scrollbar{display:none;}
