@@ -711,7 +711,6 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
   const rowRefs        = useRef([]);
   const dragStartY     = useRef(0);
   const dragStartX     = useRef(0);
-  const scrollRef      = useRef(null);
 
   // PCドラッグ（draggable API）
   const onDragStart = (i, e) => {
@@ -735,7 +734,6 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
     dragStartX.current = e.touches[0].clientX;
     dragStartY.current = e.touches[0].clientY;
     longPressTimer.current = setTimeout(() => {
-      const rect = rowRefs.current[i]?.getBoundingClientRect();
       setDraggingIdx(i);
       setOverIdx(i);
       setFloatPos({ x: dragStartX.current, y: dragStartY.current });
