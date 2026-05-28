@@ -869,13 +869,6 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
               position:"relative",
               userSelect:"none", WebkitUserSelect:"none", WebkitTouchCallout:"none",
             }}>
-            {/* ドラッグハンドル */}
-            <div
-              onTouchStart={e=>onHandleTouchStart(i,e)}
-              onTouchMove={onHandleTouchMove}
-              onTouchEnd={onHandleTouchEnd}
-              style={{ fontSize:20,color:C.sub,cursor:"grab",flexShrink:0,padding:"0 2px",
-                userSelect:"none",WebkitUserSelect:"none",touchAction:"none",lineHeight:1 }}>≡</div>
             {/* アイコン（タップで変更） */}
             <button onClick={()=>{ setEmojiInput(""); setPickerTaskId(task.id); }}
               style={{ width:36,height:36,borderRadius:10,background:C.sky,border:`1.5px solid ${C.border}`,fontSize:20,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",position:"relative" }}>
@@ -887,6 +880,13 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
             <span style={{ color:task.color,fontWeight:800,minWidth:28,textAlign:"center",fontSize:16 }}>{val}</span>
             <button onClick={()=>setIntervals(p=>({...p,[key]:val+1}))} style={{ width:30,height:30,background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,fontWeight:700,fontSize:16,cursor:"pointer" }}>+</button>
             <span style={{ color:C.sub,fontSize:12 }}>日</span>
+            {/* ドラッグハンドル（右端） */}
+            <div
+              onTouchStart={e=>onHandleTouchStart(i,e)}
+              onTouchMove={onHandleTouchMove}
+              onTouchEnd={onHandleTouchEnd}
+              style={{ fontSize:20,color:C.sub,cursor:"grab",flexShrink:0,padding:"0 2px",
+                userSelect:"none",WebkitUserSelect:"none",touchAction:"none",lineHeight:1 }}>≡</div>
           </div>
         );
       })}
@@ -1075,37 +1075,50 @@ export default function App() {
         {orderedAllTasks.map(task=>{
           const history=tank?.tasks[task.id]?.history||[];
           const days=daysSince(history);
+          const isNeverDone = days===Infinity; // 一度も実施していない
           const interval=getInterval(task.id,task.defaultInterval);
           const status=getStatus(days,interval);
           const daysLeft=interval-days;
-          const pct=Math.min(100,days===Infinity?100:(days/interval)*100);
+          const pct=Math.min(100,isNeverDone?100:(days/interval)*100);
           const cnt=todayCount(task.id);
           const last=lastDone(task.id);
           const sc=status==="urgent"?C.danger:status==="warn"?C.warn:C.green;
-          const sbg=status==="urgent"?"#FFF5F5":status==="warn"?"#FFFBEB":"#F0FDF8";
-          const sborder=status==="urgent"?"#FECACA":status==="warn"?"#FDE68A":"#BBF7D0";
+          // 未実施（一度も記録なし）はグレー配色
+          const sbg     = isNeverDone ? "#F4F4F2" : status==="urgent"?"#FFF5F5":status==="warn"?"#FFFBEB":"#F0FDF8";
+          const sborder = isNeverDone ? "#DDDDD8" : status==="urgent"?"#FECACA":status==="warn"?"#FDE68A":"#BBF7D0";
+          const iconBg  = isNeverDone ? "#E8E8E4" : `${task.color}18`;
+          const iconBorder = isNeverDone ? "#CFCFCA" : `${task.color}44`;
+          const badgeBg = isNeverDone ? "#AAAAAA" : sc;
           return (
-            <div key={task.id} style={{ background:sbg,border:`1.5px solid ${sborder}`,borderRadius:14,padding:"7px",position:"relative",overflow:"hidden",boxShadow:status==="urgent"?`0 2px 10px ${C.danger}22`:"0 1px 6px rgba(90,175,214,0.09)" }}>
-              <div style={{ position:"absolute",top:0,left:0,height:3,width:`${pct}%`,background:`linear-gradient(to right,${task.color},${sc})`,borderRadius:"14px 0 0 0",transition:"width 0.6s ease" }}/>
+            <div key={task.id} style={{ background:sbg,border:`1.5px solid ${sborder}`,borderRadius:14,padding:"7px",position:"relative",overflow:"hidden",
+              boxShadow:isNeverDone?"none":status==="urgent"?`0 2px 10px ${C.danger}22`:"0 1px 6px rgba(90,175,214,0.09)",
+              opacity: isNeverDone ? 0.75 : 1 }}>
+              <div style={{ position:"absolute",top:0,left:0,height:3,width:`${pct}%`,
+                background: isNeverDone ? "#CFCFCA" : `linear-gradient(to right,${task.color},${sc})`,
+                borderRadius:"14px 0 0 0",transition:"width 0.6s ease" }}/>
               <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                 {/* アイコン */}
-                <div style={{ width:48,height:48,borderRadius:12,background:`${task.color}18`,border:`2px solid ${task.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,position:"relative" }}>
+                <div style={{ width:48,height:48,borderRadius:12,background:iconBg,border:`2px solid ${iconBorder}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,position:"relative",
+                  filter: isNeverDone ? "grayscale(60%)" : "none" }}>
                   {iconOverrides[task.id] || task.icon}
                   {cnt>0&&<div style={{ position:"absolute",top:-5,right:-5,width:17,height:17,background:task.color,borderRadius:"50%",border:"2px solid white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"white" }}>{cnt}</div>}
                 </div>
                 {/* テキスト */}
                 <div style={{ flex:1,minWidth:0 }}>
                   <div style={{ display:"flex",alignItems:"center",gap:5,marginBottom:2 }}>
-                    <span style={{ fontWeight:800,fontSize:15,color:C.text }}>{task.label}</span>
+                    <span style={{ fontWeight:800,fontSize:15,color:isNeverDone?"#888":C.text }}>{task.label}</span>
+                    {isNeverDone&&<span style={{ fontSize:10,fontWeight:700,color:"white",background:"#AAAAAA",padding:"1px 7px",borderRadius:20 }}>まだ未実施</span>}
                   </div>
-                  <div style={{ fontSize:11,color:C.sub }}>前回: {last?`${new Date(last).getMonth()+1}/${new Date(last).getDate()} ${formatTime(last)}`:"未実施"}</div>
+                  <div style={{ fontSize:11,color:isNeverDone?"#AAAAAA":C.sub }}>
+                    {isNeverDone ? "はじめての記録をつけましょう！" : `前回: ${new Date(last).getMonth()+1}/${new Date(last).getDate()} ${formatTime(last)}`}
+                  </div>
                   {cnt>0&&<div style={{ fontSize:10,color:task.color,fontWeight:700,marginTop:1 }}>🐟 本日 {cnt}回実施済み</div>}
                 </div>
-                {/* 残り日数バッジ（右側に大きく表示） */}
+                {/* 残り日数バッジ */}
                 <div style={{ flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
                   width:40,height:40,borderRadius:12,
-                  background:status==="urgent"?C.danger:status==="warn"?C.warn:C.green,
-                  boxShadow:`0 3px 10px ${sc}55`,
+                  background:badgeBg,
+                  boxShadow:isNeverDone?"none":`0 3px 10px ${sc}55`,
                   marginRight:4
                 }}>
                   {days===Infinity?(
@@ -1128,7 +1141,11 @@ export default function App() {
                 </div>
                 {/* 実施ボタン */}
                 <button onClick={()=>doTask(task.id)}
-                  style={{ width:40,height:40,borderRadius:12,background:`linear-gradient(135deg,${task.color},${task.color}CC)`,border:"none",color:"white",fontSize:18,cursor:"pointer",flexShrink:0,boxShadow:`0 3px 10px ${task.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700 }}
+                  style={{ width:40,height:40,borderRadius:12,
+                    background: isNeverDone ? "linear-gradient(135deg,#AAAAAA,#999999)" : `linear-gradient(135deg,${task.color},${task.color}CC)`,
+                    border:"none",color:"white",fontSize:18,cursor:"pointer",flexShrink:0,
+                    boxShadow: isNeverDone ? "none" : `0 3px 10px ${task.color}55`,
+                    display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700 }}
                   onTouchStart={e=>e.currentTarget.style.transform="scale(0.90)"}
                   onTouchEnd={e=>e.currentTarget.style.transform="scale(1)"}>✓</button>
               </div>
@@ -1230,7 +1247,18 @@ export default function App() {
             <h1 style={{ margin:"2px 0 0",fontSize:21,fontWeight:800,color:"white",textShadow:"0 1px 8px rgba(0,60,100,0.25)" }}>🐟 メダカ管理帳</h1>
           </div>
           <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-            {urgentCount>0&&<div style={{ background:"white",borderRadius:20,padding:"5px 12px",fontSize:12,fontWeight:800,color:C.danger,boxShadow:"0 4px 14px rgba(0,0,0,0.15)",animation:"shimmer 1.8s infinite" }}>⚠️{urgentCount}</div>}
+            {urgentCount>0&&(
+              <div style={{ background:"white",borderRadius:20,padding:"5px 12px 5px 5px",
+                display:"flex",alignItems:"center",gap:7,
+                border:"1.5px solid rgba(224,90,74,0.3)",
+                boxShadow:"0 3px 10px rgba(0,0,0,0.15)",
+                animation:"shimmer 1.8s infinite" }}>
+                <div style={{ background:C.danger,borderRadius:12,minWidth:24,height:24,padding:"0 6px",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:13,fontWeight:900,color:"white" }}>{urgentCount}</div>
+                <span style={{ color:C.danger,fontSize:12,fontWeight:700,whiteSpace:"nowrap" }}>件 未実施</span>
+              </div>
+            )}
             <button onClick={()=>setView("settings")} style={{ background:"rgba(255,255,255,0.2)",border:"1.5px solid rgba(255,255,255,0.4)",borderRadius:10,color:"white",padding:"6px 10px",fontSize:16,cursor:"pointer" }}>⚙️</button>
           </div>
         </div>
