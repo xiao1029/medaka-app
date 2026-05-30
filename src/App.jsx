@@ -701,7 +701,10 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
   const [overIdx,      setOverIdx]      = useState(null);
 
   const orderedTasks = taskOrder.length > 0
-    ? taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean)
+    ? [
+        ...taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean),
+        ...allTasks.filter(t => !taskOrder.includes(t.id))
+      ]
     : allTasks;
 
   const getIcon = (task) => iconOverrides[task.id] || task.icon;
@@ -896,15 +899,20 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
         <InputF placeholder="ケア名（例：グリーンウォーター補充）" value={newTaskLabel} onChange={e=>setNewTaskLabel(e.target.value)}/>
         <div style={{ display:"flex",alignItems:"center",gap:8,margin:"10px 0" }}>
           <span style={{ color:C.sub,fontSize:13 }}>周期:</span>
-          <button onClick={()=>setNewTaskInterval(p=>Math.max(1,p-1))} style={{ width:30,height:30,background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,fontWeight:700,fontSize:16,cursor:"pointer" }}>−</button>
-          <span style={{ color:C.text,fontWeight:800,minWidth:24,textAlign:"center" }}>{newTaskInterval}</span>
-          <button onClick={()=>setNewTaskInterval(p=>p+1)} style={{ width:30,height:30,background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,fontWeight:700,fontSize:16,cursor:"pointer" }}>+</button>
-          <span style={{ color:C.sub,fontSize:13 }}>日ごと</span>
+          <input
+            type="number" min="1" max="365"
+            value={newTaskInterval}
+            onChange={e=>{ const v=parseInt(e.target.value); if(!isNaN(v)&&v>=1&&v<=365) setNewTaskInterval(v); }}
+            style={{ width:72,textAlign:"center",padding:"8px 4px",background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,fontWeight:800,fontSize:16,outline:"none",WebkitUserSelect:"text",userSelect:"text" }}
+          />
+          <span style={{ color:C.sub,fontSize:13 }}>日ごと（1〜365）</span>
         </div>
         <Btn color={C.water} onClick={()=>{
           if(!newTaskLabel.trim()) return;
           const nt={ id:`custom_${Date.now()}`,label:newTaskLabel.trim(),icon:"⭐",defaultInterval:newTaskInterval,color:C.pink };
-          setCustomTasks(prev=>[...prev,nt]); setNewTaskLabel(""); setNewTaskInterval(7);
+          setCustomTasks(prev=>[...prev,nt]);
+          setTaskOrder(prev=> prev.length>0 ? [...prev,nt.id] : []);
+          setNewTaskLabel(""); setNewTaskInterval(7);
           showToast(`⭐ ${nt.label}を追加しました`);
         }}>追加する</Btn>
       </Card>
@@ -995,9 +1003,12 @@ export default function App() {
   const [iconOverrides,setIconOverrides] = useState(()=>lGet("med_icon_overrides",{}));
 
   const allTasks = [...DEFAULT_TASKS,...customTasks];
-  // taskOrderが設定されていれば並び順を適用
+  // taskOrderが設定されていれば並び順を適用、未登録のタスクは末尾に追加
   const orderedAllTasks = taskOrder.length > 0
-    ? taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean)
+    ? [
+        ...taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean),
+        ...allTasks.filter(t => !taskOrder.includes(t.id)) // taskOrderにないタスクを末尾に
+      ]
     : allTasks;
   const tank     = tanks[selectedTank]||tanks[0];
   const logTank  = tanks[logTankIdx]||tanks[0];
