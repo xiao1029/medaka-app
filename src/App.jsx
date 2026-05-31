@@ -678,10 +678,10 @@ function TankEditRow({ tank, isSelected, canDelete, onSave, onDelete }) {
 ═══════════════════════════════════════════════════════════ */
 function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
   customTasks, setCustomTasks, intervals, setIntervals, allTasks, tank, showToast,
-  taskOrder, setTaskOrder, iconOverrides, setIconOverrides }) {
+  taskOrder, setTaskOrder, iconOverrides, setIconOverrides, hiddenTasks, setHiddenTasks }) {
 
   const [newTaskLabel,    setNewTaskLabel]    = useState("");
-  const [newTaskInterval, setNewTaskInterval] = useState(7);
+  const [newTaskInterval, setNewTaskInterval] = useState("");
   const [newTankName,     setNewTankName]     = useState("");
   const [newTankNotes,    setNewTankNotes]    = useState("");
   const [pickerTaskId,    setPickerTaskId]    = useState(null); // ピッカー表示中のtaskId
@@ -700,12 +700,13 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
   const [floatPos,     setFloatPos]     = useState({ x:0, y:0 });
   const [overIdx,      setOverIdx]      = useState(null);
 
-  const orderedTasks = taskOrder.length > 0
+  const orderedTasks = (taskOrder.length > 0
     ? [
         ...taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean),
         ...allTasks.filter(t => !taskOrder.includes(t.id))
       ]
-    : allTasks;
+    : allTasks
+  ).filter(t => !hiddenTasks.includes(t.id));
 
   const getIcon = (task) => iconOverrides[task.id] || task.icon;
 
@@ -883,6 +884,19 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
             <span style={{ color:task.color,fontWeight:800,minWidth:28,textAlign:"center",fontSize:16 }}>{val}</span>
             <button onClick={()=>setIntervals(p=>({...p,[key]:val+1}))} style={{ width:30,height:30,background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,fontWeight:700,fontSize:16,cursor:"pointer" }}>+</button>
             <span style={{ color:C.sub,fontSize:12 }}>日</span>
+            {/* 削除ボタン */}
+            <button onClick={()=>{
+              const isDefault = DEFAULT_TASKS.some(d=>d.id===task.id);
+              if(isDefault){
+                setHiddenTasks(prev=>[...prev,task.id]);
+              } else {
+                setCustomTasks(prev=>prev.filter(t=>t.id!==task.id));
+                setTaskOrder(prev=>prev.filter(id=>id!==task.id));
+              }
+              showToast(`🗑 ${task.label}を削除しました`);
+            }} style={{ width:30,height:30,background:"#FEE2E2",border:"none",borderRadius:8,
+              color:C.danger,fontSize:14,cursor:"pointer",flexShrink:0,
+              display:"flex",alignItems:"center",justifyContent:"center" }}>🗑</button>
             {/* ドラッグハンドル（右端） */}
             <div
               onTouchStart={e=>onHandleTouchStart(i,e)}
@@ -894,16 +908,44 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
         );
       })}
 
+      {/* 非表示タスクの復元 */}
+      {hiddenTasks.length > 0 && (
+        <>
+          <SectionLabel>非表示のケア（タップで復元）</SectionLabel>
+          {DEFAULT_TASKS.filter(t=>hiddenTasks.includes(t.id)).map(task=>(
+            <div key={task.id} onClick={()=>{
+              setHiddenTasks(prev=>prev.filter(id=>id!==task.id));
+              showToast(`✅ ${task.label}を復元しました`);
+            }} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 14px",
+              background:"#F8F8F8",border:`1.5px dashed ${C.border}`,
+              borderRadius:12,marginBottom:6,cursor:"pointer",opacity:0.6 }}>
+              <span style={{ fontSize:18,filter:"grayscale(100%)" }}>{task.icon}</span>
+              <span style={{ flex:1,color:C.sub,fontSize:14 }}>{task.label}</span>
+              <span style={{ fontSize:12,color:C.water,fontWeight:700 }}>↩ 復元</span>
+            </div>
+          ))}
+        </>
+      )}
+
       <SectionLabel>カスタムケアを追加</SectionLabel>
       <Card style={{ marginBottom:8 }}>
         <InputF placeholder="ケア名（例：グリーンウォーター補充）" value={newTaskLabel} onChange={e=>setNewTaskLabel(e.target.value)}/>
         <div style={{ display:"flex",alignItems:"center",gap:8,margin:"10px 0" }}>
           <span style={{ color:C.sub,fontSize:13 }}>周期:</span>
           <input
-            type="number" min="1" max="365"
-            value={newTaskInterval}
-            onChange={e=>{ const v=parseInt(e.target.value); if(!isNaN(v)&&v>=1&&v<=365) setNewTaskInterval(v); }}
-            style={{ width:72,textAlign:"center",padding:"8px 4px",background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,fontWeight:800,fontSize:16,outline:"none",WebkitUserSelect:"text",userSelect:"text" }}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder="例: 7"
+            value={newTaskInterval||""}
+            onChange={e=>{
+              const raw = e.target.value.replace(/[^0-9]/g,"");
+              if(raw==="") { setNewTaskInterval(""); return; }
+              const v = parseInt(raw);
+              if(v>=1&&v<=365) setNewTaskInterval(v);
+            }}
+            onBlur={()=>{ if(!newTaskInterval||newTaskInterval<1) setNewTaskInterval(1); }}
+            style={{ width:80,textAlign:"center",padding:"8px 4px",background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,fontWeight:800,fontSize:16,outline:"none",WebkitUserSelect:"text",userSelect:"text" }}
           />
           <span style={{ color:C.sub,fontSize:13 }}>日ごと（1〜365）</span>
         </div>
@@ -912,7 +954,7 @@ function SettingsView({ tanks, setTanks, selectedTank, setSelectedTank, setView,
           const nt={ id:`custom_${Date.now()}`,label:newTaskLabel.trim(),icon:"⭐",defaultInterval:newTaskInterval,color:C.pink };
           setCustomTasks(prev=>[...prev,nt]);
           setTaskOrder(prev=> prev.length>0 ? [...prev,nt.id] : []);
-          setNewTaskLabel(""); setNewTaskInterval(7);
+          setNewTaskLabel(""); setNewTaskInterval("");
           showToast(`⭐ ${nt.label}を追加しました`);
         }}>追加する</Btn>
       </Card>
@@ -999,17 +1041,19 @@ export default function App() {
   const [fishRecords,setFishRecords]   = useState(()=>lGet("med_fish",[]));
   const [myProfile,setMyProfile]       = useState(()=>lGet("med_profile",null));
   const [friends,setFriends]           = useState(()=>lGet("med_friends",[]));
-  const [taskOrder,setTaskOrder]       = useState(()=>lGet("med_task_order",[]));
+  const [taskOrder,setTaskOrder]         = useState(()=>lGet("med_task_order",[]));
   const [iconOverrides,setIconOverrides] = useState(()=>lGet("med_icon_overrides",{}));
+  const [hiddenTasks,setHiddenTasks]     = useState(()=>lGet("med_hidden_tasks",[]));
 
   const allTasks = [...DEFAULT_TASKS,...customTasks];
-  // taskOrderが設定されていれば並び順を適用、未登録のタスクは末尾に追加
-  const orderedAllTasks = taskOrder.length > 0
+  // taskOrderが設定されていれば並び順を適用、未登録のタスクは末尾に追加、非表示は除外
+  const orderedAllTasks = (taskOrder.length > 0
     ? [
         ...taskOrder.map(id => allTasks.find(t => t.id === id)).filter(Boolean),
-        ...allTasks.filter(t => !taskOrder.includes(t.id)) // taskOrderにないタスクを末尾に
+        ...allTasks.filter(t => !taskOrder.includes(t.id))
       ]
-    : allTasks;
+    : allTasks
+  ).filter(t => !hiddenTasks.includes(t.id));
   const tank     = tanks[selectedTank]||tanks[0];
   const logTank  = tanks[logTankIdx]||tanks[0];
   // 日付変更を自動検知して更新
@@ -1033,6 +1077,7 @@ export default function App() {
   useEffect(()=>lSet("med_friends",friends),[friends]);
   useEffect(()=>lSet("med_task_order",taskOrder),[taskOrder]);
   useEffect(()=>lSet("med_icon_overrides",iconOverrides),[iconOverrides]);
+  useEffect(()=>lSet("med_hidden_tasks",hiddenTasks),[hiddenTasks]);
   useEffect(()=>{
     if(!myProfile) return;
     const pub={ id:myProfile.id,name:myProfile.name,bio:myProfile.bio,avatar:myProfile.avatar,
@@ -1330,7 +1375,7 @@ export default function App() {
         {view==="diary"    && <DiaryView tank={tank} tanks={tanks} diaryEntries={diaryEntries} setDiaryEntries={setDiaryEntries} showToast={showToast} todayStr={todayStr}/>}
         {view==="fish"     && <FishView  fishRecords={fishRecords} setFishRecords={setFishRecords} showToast={showToast} todayStr={todayStr} tanks={tanks}/>}
         {view==="friends"  && <FriendsView myProfile={myProfile} setMyProfile={setMyProfile} friends={friends} setFriends={setFriends} diaryEntries={diaryEntries} fishRecords={fishRecords} showToast={showToast}/>}
-        {view==="settings" && <SettingsView tanks={tanks} setTanks={setTanks} selectedTank={selectedTank} setSelectedTank={setSelectedTank} setView={setView} customTasks={customTasks} setCustomTasks={setCustomTasks} intervals={intervals} setIntervals={setIntervals} allTasks={allTasks} tank={tank} showToast={showToast} taskOrder={taskOrder} setTaskOrder={setTaskOrder} iconOverrides={iconOverrides} setIconOverrides={setIconOverrides}/>}
+        {view==="settings" && <SettingsView tanks={tanks} setTanks={setTanks} selectedTank={selectedTank} setSelectedTank={setSelectedTank} setView={setView} customTasks={customTasks} setCustomTasks={setCustomTasks} intervals={intervals} setIntervals={setIntervals} allTasks={allTasks} tank={tank} showToast={showToast} taskOrder={taskOrder} setTaskOrder={setTaskOrder} iconOverrides={iconOverrides} setIconOverrides={setIconOverrides} hiddenTasks={hiddenTasks} setHiddenTasks={setHiddenTasks}/>}
       </div>
 
       {/* ボトムナビ */}
