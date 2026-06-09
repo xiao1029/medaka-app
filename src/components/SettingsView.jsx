@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { C, DEFAULT_TASKS, MEDAKA_COLORS } from "../constants";
+import { genId } from "../utils";
 import { Card, Btn, InputF, SectionLabel } from "./ui/CommonUI";
 
 function TankEditRow({ tank, isSelected, canDelete, onSave, onDelete }) {
