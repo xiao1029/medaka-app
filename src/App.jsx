@@ -168,7 +168,7 @@ export default function App() {
     </div>
   );
 
-  /* ── LogView ── 案C「＋ケアを追加」機能付き */
+  /* ── LogView ── 案C「＋ケアを追加」＋未来日付バリデーション */
   const LogView = () => {
     const [addModal,setAddModal]   = useState(false);
     const [selTaskId,setSelTaskId] = useState(orderedAllTasks[0]?.id||"feed");
@@ -187,6 +187,11 @@ export default function App() {
       const [h,m]=addTime.split(":").map(Number);
       const dt=new Date(selectedDay+"T00:00:00");
       dt.setHours(h,m,0,0);
+      // ── バリデーション：未来日時は弾く ──
+      if(dt > new Date()){
+        showToast("⚠️ 未来の日時は登録できません");
+        return;
+      }
       const iso=dt.toISOString();
       setTanks(prev=>prev.map((t,i)=>{
         if(i!==logTankIdx) return t;
@@ -197,15 +202,19 @@ export default function App() {
       showToast(`📅 ${orderedAllTasks.find(t=>t.id===selTaskId)?.label}を追加しました`);
     };
 
+    // カレンダーの日付選択：未来日付は弾く
+    const handleDaySelect = (ds) => {
+      if(ds > todayStr){ showToast("⚠️ 未来の日付は選択できません"); return; }
+      setSelectedDay(ds);
+    };
+
     return (
       <div style={{ flex:1,overflowY:"auto",paddingBottom:90 }}>
-        {/* カレンダー */}
         <CalendarView tank={logTank} allTasks={orderedAllTasks}
           diaryEntries={diaryEntries.filter(e=>e.tankId===logTank.id)}
           medakaRecords={fishRecords.filter(r=>!r.tankId||r.tankId===logTank.id)}
-          onDaySelect={setSelectedDay} selectedDay={selectedDay}/>
+          onDaySelect={handleDaySelect} selectedDay={selectedDay}/>
 
-        {/* 水槽タブ */}
         {tanks.length>1&&(
           <div style={{ padding:"0 16px 12px" }}>
             <div style={{ display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2 }}>
@@ -222,66 +231,47 @@ export default function App() {
         )}
 
         <div style={{ padding:"0 16px" }}>
-          {/* ヘッダー：日付ラベル＋「＋ケアを追加」ボタン */}
           <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12 }}>
             <div style={{ display:"flex",alignItems:"center",gap:8 }}>
               <span style={{ fontWeight:800,fontSize:15,color:C.text }}>📋 {selLabel}のケア記録</span>
               {selectedDay===todayStr&&<span style={{ fontSize:11,fontWeight:700,color:C.water,background:C.sky,padding:"2px 10px",borderRadius:20 }}>今日</span>}
             </div>
             <button onClick={()=>{ setSelTaskId(orderedAllTasks[0]?.id||"feed"); setAddTime("08:00"); setAddModal(true); }}
-              style={{ padding:"7px 14px",background:`linear-gradient(135deg,${C.green},${C.green}CC)`,
-                border:"none",borderRadius:20,color:"white",fontWeight:700,fontSize:12,
-                cursor:"pointer",boxShadow:`0 2px 8px ${C.green}44`,flexShrink:0,whiteSpace:"nowrap" }}>
+              style={{ padding:"7px 14px",background:`linear-gradient(135deg,${C.green},${C.green}CC)`,border:"none",borderRadius:20,color:"white",fontWeight:700,fontSize:12,cursor:"pointer",boxShadow:`0 2px 8px ${C.green}44`,flexShrink:0,whiteSpace:"nowrap" }}>
               ＋ ケアを追加
             </button>
           </div>
 
-          {/* 追加モーダル */}
           {addModal&&(
-            <div style={{ background:C.white,border:`1.5px solid ${C.border}`,borderRadius:18,padding:16,marginBottom:14,
-              boxShadow:"0 4px 20px rgba(90,175,214,0.2)" }}>
-              <div style={{ fontWeight:800,fontSize:14,color:C.text,marginBottom:12 }}>
-                📅 {selLabel}のケアを追加
-              </div>
-              {/* ケア種類選択 */}
+            <div style={{ background:C.white,border:`1.5px solid ${C.border}`,borderRadius:18,padding:16,marginBottom:14,boxShadow:"0 4px 20px rgba(90,175,214,0.2)" }}>
+              <div style={{ fontWeight:800,fontSize:14,color:C.text,marginBottom:12 }}>📅 {selLabel}のケアを追加</div>
               <label style={{ fontSize:11,fontWeight:700,color:C.sub,display:"block",marginBottom:6 }}>ケアの種類</label>
               <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:12 }}>
                 {orderedAllTasks.map(t=>(
                   <button key={t.id} onClick={()=>setSelTaskId(t.id)}
-                    style={{ padding:"6px 12px",borderRadius:20,
-                      border:`2px solid ${selTaskId===t.id?t.color:C.border}`,
-                      background:selTaskId===t.id?`${t.color}18`:C.white,
-                      color:selTaskId===t.id?t.color:C.sub,
-                      fontWeight:selTaskId===t.id?800:500,
-                      fontSize:12,cursor:"pointer",transition:"all 0.15s" }}>
+                    style={{ padding:"6px 12px",borderRadius:20,border:`2px solid ${selTaskId===t.id?t.color:C.border}`,
+                      background:selTaskId===t.id?`${t.color}18`:C.white,color:selTaskId===t.id?t.color:C.sub,
+                      fontWeight:selTaskId===t.id?800:500,fontSize:12,cursor:"pointer",transition:"all 0.15s" }}>
                     {iconOverrides[t.id]||t.icon} {t.label}
                   </button>
                 ))}
               </div>
-              {/* 時刻入力 */}
               <label style={{ fontSize:11,fontWeight:700,color:C.sub,display:"block",marginBottom:4 }}>⏰ 時刻</label>
               <input type="time" value={addTime} onChange={e=>setAddTime(e.target.value)}
-                style={{ width:"100%",padding:"10px 14px",background:C.sky,border:`1.5px solid ${C.border}`,
-                  borderRadius:12,fontSize:15,color:C.text,outline:"none",marginBottom:14,
-                  WebkitUserSelect:"text",userSelect:"text" }}/>
-              {/* ボタン */}
+                style={{ width:"100%",padding:"10px 14px",background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:12,fontSize:15,color:C.text,outline:"none",marginBottom:14,WebkitUserSelect:"text",userSelect:"text" }}/>
               <div style={{ display:"flex",gap:8 }}>
                 <button onClick={()=>setAddModal(false)}
-                  style={{ flex:1,padding:"10px",background:C.sky,border:`1.5px solid ${C.border}`,
-                    borderRadius:12,color:C.sub,fontWeight:700,fontSize:13,cursor:"pointer" }}>
+                  style={{ flex:1,padding:"10px",background:C.sky,border:`1.5px solid ${C.border}`,borderRadius:12,color:C.sub,fontWeight:700,fontSize:13,cursor:"pointer" }}>
                   キャンセル
                 </button>
                 <button onClick={addPastRecord}
-                  style={{ flex:2,padding:"10px",background:`linear-gradient(135deg,${C.green},${C.green}CC)`,
-                    border:"none",borderRadius:12,color:"white",fontWeight:800,fontSize:13,
-                    cursor:"pointer",boxShadow:`0 3px 10px ${C.green}44` }}>
+                  style={{ flex:2,padding:"10px",background:`linear-gradient(135deg,${C.green},${C.green}CC)`,border:"none",borderRadius:12,color:"white",fontWeight:800,fontSize:13,cursor:"pointer",boxShadow:`0 3px 10px ${C.green}44` }}>
                   追加する
                 </button>
               </div>
             </div>
           )}
 
-          {/* ログ一覧 */}
           {dayLogs.length===0
             ?<div style={{ textAlign:"center",padding:"28px 0",color:C.sub }}>
                 <div style={{ fontSize:36,marginBottom:8 }}>🐠</div>
